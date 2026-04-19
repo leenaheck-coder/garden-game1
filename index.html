@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garden Simulator</title>
+    <script src="https://tailwindcss.com"></script>
+    <style>
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(-5%); }
+            50% { transform: translateY(0); }
+        }
+        .animate-bounce-slow { animation: bounce-slow 1s infinite; }
+    </style>
+</head>
+<body class="bg-green-50 min-h-screen font-sans flex flex-col items-center p-6">
+
+    <!-- Header Stats -->
+    <div class="w-full max-w-2xl flex justify-between items-center bg-white p-4 rounded-2xl shadow-md mb-6 border-b-4 border-green-200">
+        <div id="money-display" class="flex items-center gap-2 text-2xl font-bold text-green-700">
+            💰 $25
+        </div>
+        <div class="flex gap-4 text-sm font-bold">
+            <div id="sprinkler-count" class="text-blue-600">💧 0 Sprinklers</div>
+            <div id="level-display" class="text-orange-600">⚒️ Lvl 1</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+        <!-- Sidebar -->
+        <div class="space-y-4">
+            <h2 class="text-xl font-bold text-green-800">🌱 Seed Shop</h2>
+            <div id="shop-container" class="space-y-2"></div>
+            
+            <h2 class="text-xl font-bold text-green-800 pt-4 border-t">🚀 Upgrades</h2>
+            <button onclick="buyPlot()" id="buy-plot-btn" class="w-full bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-lg font-bold shadow">
+                Expand Garden ($500)
+            </button>
+            <button onclick="buySprinkler()" id="buy-sprinkler-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-lg font-bold shadow mt-2">
+                Buy Sprinkler ($1000)
+            </button>
+        </div>
+
+        <!-- Garden Grid -->
+        <div id="garden-grid" class="md:col-span-2 grid grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <script>
+        const PLANT_TYPES = {
+            daisy: { name: 'Daisy', cost: 10, sellPrice: 25, icon: '🌼' },
+            tulip: { name: 'Tulip', cost: 50, sellPrice: 130, icon: '🌷' },
+            sunflower: { name: 'Sunflower', cost: 200, sellPrice: 550, icon: '🌻' },
+            rose: { name: 'Rose', cost: 1000, sellPrice: 3000, icon: '🌹' }
+        };
+
+        let money = 25;
+        let plots = [null, null, null, null];
+        let selectedSeed = 'daisy';
+        let gardenLevel = 1;
+        let autoWaterers = 0;
+
+        function updateUI() {
+            document.getElementById('money-display').innerText = `💰 $${money.toLocaleString()}`;
+            document.getElementById('sprinkler-count').innerText = `💧 ${autoWaterers} Sprinklers`;
+            document.getElementById('level-display').innerText = `⚒️ Lvl ${gardenLevel}`;
+            
+            const shop = document.getElementById('shop-container');
+            shop.innerHTML = '';
+            Object.entries(PLANT_TYPES).forEach(([id, plant]) => {
+                const btn = document.createElement('button');
+                btn.className = `w-full p-4 rounded-xl border-2 flex justify-between items-center transition ${selectedSeed === id ? 'border-green-500 bg-green-100' : 'bg-white'}`;
+                btn.onclick = () => { selectedSeed = id; updateUI(); };
+                btn.innerHTML = `<div><div class="text-2xl">${plant.icon} ${plant.name}</div><div class="text-xs text-gray-500">Cost: $${plant.cost}</div></div><div class="text-green-600 font-bold">$${plant.sellPrice}</div>`;
+                shop.appendChild(btn);
+            });
+
+            const grid = document.getElementById('garden-grid');
+            grid.innerHTML = '';
+            plots.forEach((plot, i) => {
+                const div = document.createElement('div');
+                div.className = `aspect-square rounded-2xl border-4 flex flex-col items-center justify-center cursor-pointer ${!plot ? 'bg-amber-900 border-amber-950' : 'bg-white border-green-200'}`;
+                div.onclick = () => !plot ? plantSeed(i) : null;
+                
+                if (!plot) {
+                    div.innerHTML = '<span class="text-amber-100 opacity-40 text-xs font-bold">PLANT</span>';
+                } else {
+                    const isReady = plot.progress >= 100;
+                    div.innerHTML = `
+                        <div class="text-5xl transition-transform" style="transform: scale(${0.4 + (plot.progress/100)*0.6})">${plot.icon}</div>
+                        ${isReady ? `<button onclick="event.stopPropagation(); harvest(${i})" class="bg-yellow-400 p-2 rounded font-bold text-xs mt-2 animate-bounce-slow">HARVEST</button>` : 
+                        `<div class="w-3/4 bg-gray-200 h-2 rounded mt-2"><div class="bg-green-500 h-full" style="width:${plot.progress}%"></div></div>`}
+                    `;
+                }
+                grid.appendChild(div);
+            });
+        }
+
+        function plantSeed(i) {
+            const seed = PLANT_TYPES[selectedSeed];
+            if (money >= seed.cost) {
+                money -= seed.cost;
+                plots[i] = { ...seed, progress: 0 };
+                updateUI();
+            }
+        }
+
+        function harvest(i) {
+            money += plots[i].sellPrice;
+            plots[i] = null;
+            updateUI();
+        }
+
+        function buyPlot() {
+            let cost = gardenLevel * 500;
+            if (money >= cost) {
+                money -= cost;
+                plots.push(null);
+                gardenLevel++;
+                updateUI();
+            }
+        }
+
+        function buySprinkler() {
+            let cost = (autoWaterers + 1) * 1000;
+            if (money >= cost) {
+                money -= cost;
+                autoWaterers++;
+                updateUI();
+            }
+        }
+
+        setInterval(() => {
+            plots = plots.map(p => {
+                if (p && p.progress < 100) p.progress += (1 + autoWaterers * 0.5);
+                return p;
+            });
+            updateUI();
+        }, 1000);
+
+        updateUI();
+    </script>
+</body>
+</html>
